@@ -11,7 +11,9 @@ export const StructureManager = ({ structure, setStructure }) => {
     const [modalMode, setModalMode] = useState(null);
     const [editingItem, setEditingItem] = useState(null);
     const [formData, setFormData] = useState({
-        name: '', description: '', videoId: '', duration: '', materialsName: '', materialsUrl: '', coverImageFile: null, coverImagePreview: null,
+        name: '', description: '', videoId: '', duration: '', 
+        materialsName: '', materialsUrl: '', materialFile: null,
+        coverImageFile: null, coverImagePreview: null,
         itemType: 'aula', // 'aula' ou 'quiz' na hora de criar aula
         questions: [], minScore: 70,
         dripDays: 0, prerequisiteModuleId: ''
@@ -83,10 +85,22 @@ export const StructureManager = ({ structure, setStructure }) => {
 
         try {
             const materials = editingItem?.materials ? [...editingItem.materials] : [];
-            if (formData.materialsName && formData.materialsUrl) {
+            
+            // 1. Upload Material File if present
+            if (formData.materialFile) {
+                const materialRef = ref(storage, `materials/${Date.now()}_${formData.materialFile.name}`);
+                await uploadBytes(materialRef, formData.materialFile);
+                const materialUrl = await getDownloadURL(materialRef);
+                materials.push({ 
+                    name: formData.materialsName || formData.materialFile.name, 
+                    url: materialUrl 
+                });
+            } else if (formData.materialsName && formData.materialsUrl) {
+                // Fallback to manual URL if no file is selected
                 materials.push({ name: formData.materialsName, url: formData.materialsUrl });
             }
 
+            // 2. Upload Cover Image if present
             let coverImageUrl = editingItem?.coverImage || null;
             if (formData.coverImageFile) {
                 const imageRef = ref(storage, `covers/${Date.now()}_${formData.coverImageFile.name}`);
@@ -105,7 +119,7 @@ export const StructureManager = ({ structure, setStructure }) => {
                 ...(nodeType === 'aula' && formData.videoId ? { videoId: formData.videoId, duration: formData.duration } : {}),
                 ...(nodeType === 'quiz' ? { questions: formData.questions || [], minScore: formData.minScore } : {}),
                 materials: materials,
-                ...(nodeType === 'curso' || nodeType === 'trilha' ? { coverImage: coverImageUrl } : {})
+                ...(nodeType === 'curso' ? { coverImage: coverImageUrl } : {})
             }; // no children array here for atomic DB persistence
 
             // Calculate Order
@@ -142,7 +156,12 @@ export const StructureManager = ({ structure, setStructure }) => {
             toast.success("Salvo com sucesso!");
 
             setModalMode(null);
-            setFormData({ name: '', description: '', videoId: '', duration: '', materialsName: '', materialsUrl: '', coverImageFile: null, coverImagePreview: null, itemType: 'aula', questions: [], minScore: 70, dripDays: 0, prerequisiteModuleId: '' });
+            setFormData({ 
+                name: '', description: '', videoId: '', duration: '', 
+                materialsName: '', materialsUrl: '', materialFile: null,
+                coverImageFile: null, coverImagePreview: null, 
+                itemType: 'aula', questions: [], minScore: 70, dripDays: 0, prerequisiteModuleId: '' 
+            });
         } catch (error) { 
             console.error("Save Error:", error); 
             toast.error("Erro ao salvar."); 
@@ -196,7 +215,8 @@ export const StructureManager = ({ structure, setStructure }) => {
         setEditingItem(item);
         setFormData({
             name: item.name, description: item.description || '', videoId: item.videoId || '', duration: item.duration || '',
-            materialsName: '', materialsUrl: '', coverImageFile: null, coverImagePreview: item.coverImage || null,
+            materialsName: '', materialsUrl: '', materialFile: null,
+            coverImageFile: null, coverImagePreview: item.coverImage || null,
             itemType: item.type, questions: item.questions || [], minScore: item.minScore || 70,
             dripDays: item.dripDays || 0, prerequisiteModuleId: item.prerequisiteModuleId || ''
         });
@@ -219,7 +239,15 @@ export const StructureManager = ({ structure, setStructure }) => {
         <div className="p-6">
             <div className="flex justify-between items-center mb-6">
                 <div><h2 className="text-2xl font-bold text-gray-800 dark:text-white">Gerenciador de Conteúdo</h2><p className="text-gray-500 dark:text-gray-400 text-sm mt-1">Navegue e edite o curso.</p></div>
-                <Button onClick={() => { setModalMode('create'); setFormData({ name: '', description: '', videoId: '', duration: '', materialsName: '', materialsUrl: '', coverImageFile: null, coverImagePreview: null, itemType: 'aula', questions: [], minScore: 70, dripDays: 0, prerequisiteModuleId: '' }); }}><Plus size={18} /> Novo Item</Button>
+                <Button onClick={() => { 
+                    setModalMode('create'); 
+                    setFormData({ 
+                        name: '', description: '', videoId: '', duration: '', 
+                        materialsName: '', materialsUrl: '', materialFile: null,
+                        coverImageFile: null, coverImagePreview: null, 
+                        itemType: 'aula', questions: [], minScore: 70, dripDays: 0, prerequisiteModuleId: '' 
+                    }); 
+                }}><Plus size={18} /> Novo Item</Button>
             </div>
             <div className="flex items-center gap-2 text-sm text-gray-500 mb-6 overflow-x-auto pb-2">
                 <button onClick={() => setCurrentPath([])} className="hover:text-[#0a0a0a] dark:hover:text-white font-medium dark:text-gray-400">Início</button>
@@ -291,7 +319,7 @@ export const StructureManager = ({ structure, setStructure }) => {
                                 </div>
                             )}
 
-                            {((modalMode === 'create' ? getNextType() : editingItem.type) === 'curso' || (modalMode === 'create' ? getNextType() : editingItem.type) === 'trilha') && (
+                            {(modalMode === 'create' ? getNextType() : editingItem.type) === 'curso' && (
                                 <div className="mt-4 border-t border-gray-100 dark:border-gray-700 pt-4 mb-2">
                                     <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 block">Imagem de Capa (Opcional)</label>
                                     <div className="flex items-center gap-4">
@@ -408,20 +436,72 @@ export const StructureManager = ({ structure, setStructure }) => {
                                         )}
                                     </div>
 
-                                    {/* Upload de Materiais Simulado */}
+                                    {/* Upload de Materiais Real */}
                                     <div className="border-t border-gray-200 dark:border-gray-700 pt-3 mt-3">
-                                        <label className="text-sm font-bold text-gray-700 dark:text-gray-300 mb-2 block">Anexar Material</label>
-                                        <div className="flex gap-2">
-                                            <input type="text" placeholder="Nome do Arquivo" className="flex-1 border dark:border-gray-600 rounded-lg p-2.5 text-sm dark:bg-gray-700 dark:text-white" value={formData.materialsName} onChange={e => setFormData({ ...formData, materialsName: e.target.value })} />
-                                            <input type="text" placeholder="URL do PDF/Drive" className="flex-1 border dark:border-gray-600 rounded-lg p-2.5 text-sm dark:bg-gray-700 dark:text-white" value={formData.materialsUrl} onChange={e => setFormData({ ...formData, materialsUrl: e.target.value })} />
+                                        <div className="flex items-center justify-between mb-2">
+                                            <label className="text-sm font-bold text-gray-700 dark:text-gray-300">Anexar Material (PDF/Doc)</label>
+                                            {formData.materialFile && (
+                                                <button 
+                                                    onClick={() => setFormData({ ...formData, materialFile: null })}
+                                                    className="text-xs text-red-500 hover:text-red-600 flex items-center gap-1"
+                                                >
+                                                    <X size={12} /> Remover arquivo selecionado
+                                                </button>
+                                            )}
                                         </div>
-                                        <p className="text-xs text-gray-400 mt-1">Cole o link público do Google Drive ou Dropbox.</p>
+                                        
+                                        <div className="flex flex-col gap-3">
+                                            <div className="flex gap-2">
+                                                <input 
+                                                    type="file" 
+                                                    id="material-upload"
+                                                    className="hidden"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files[0];
+                                                        if (file) {
+                                                            setFormData({ ...formData, materialFile: file });
+                                                        }
+                                                    }}
+                                                />
+                                                <label 
+                                                    htmlFor="material-upload" 
+                                                    className={`flex-1 flex items-center justify-center gap-2 p-2.5 border-2 border-dashed rounded-lg cursor-pointer transition-colors ${formData.materialFile ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400' : 'border-gray-300 dark:border-gray-600 hover:border-indigo-400 dark:hover:border-indigo-500 text-gray-500 dark:text-gray-400'}`}
+                                                >
+                                                    <Plus size={16} />
+                                                    {formData.materialFile ? formData.materialFile.name : 'Escolher Arquivo'}
+                                                </label>
+                                                <input 
+                                                    type="text" 
+                                                    placeholder="Nome de Exibição" 
+                                                    className="flex-1 border dark:border-gray-600 rounded-lg p-2.5 text-sm dark:bg-gray-700 dark:text-white" 
+                                                    value={formData.materialsName} 
+                                                    onChange={e => setFormData({ ...formData, materialsName: e.target.value })} 
+                                                />
+                                            </div>
+
+                                            <div className="relative">
+                                                <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                                                    <div className="w-full border-t border-gray-200 dark:border-gray-700"></div>
+                                                </div>
+                                                <div className="relative flex justify-center text-xs">
+                                                    <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">OU use Link Externo</span>
+                                                </div>
+                                            </div>
+
+                                            <input 
+                                                type="text" 
+                                                placeholder="URL do PDF/Drive (opcional se enviar arquivo)" 
+                                                className="w-full border dark:border-gray-600 rounded-lg p-2.5 text-sm dark:bg-gray-700 dark:text-white" 
+                                                value={formData.materialsUrl} 
+                                                onChange={e => setFormData({ ...formData, materialsUrl: e.target.value })} 
+                                            />
+                                        </div>
 
                                         {editingItem?.materials?.length > 0 && (
-                                            <div className="mt-2 space-y-1">
-                                                <p className="text-xs font-bold dark:text-gray-400">Arquivos atuais:</p>
+                                            <div className="mt-4 space-y-1">
+                                                <p className="text-xs font-bold dark:text-gray-400">Arquivos vinculados:</p>
                                                 {editingItem.materials.map((m, idx) => (
-                                                    <div key={idx} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400">
+                                                    <div key={idx} className="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-white/5 p-1.5 rounded">
                                                         <File size={12} /> {m.name}
                                                     </div>
                                                 ))}

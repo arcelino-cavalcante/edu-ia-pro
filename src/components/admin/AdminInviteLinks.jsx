@@ -320,7 +320,7 @@ export const AdminInviteLinks = ({ structure }) => {
     };
 
     const copyInviteLink = (invite) => {
-        const link = `${window.location.origin}/?invite=${invite.code}`;
+        const link = `https://arcelino-cavalcante.github.io/edu-ia-pro/?invite=${invite.code}`;
         navigator.clipboard.writeText(link).then(() => {
             toast.success('Link copiado para área de transferência.');
         }).catch(() => {
@@ -513,7 +513,7 @@ export const AdminInviteLinks = ({ structure }) => {
                                 
                                 <div className="bg-gray-50 dark:bg-gray-900/50 rounded-lg p-3 mb-4 mt-2">
                                     <p className="text-xs text-indigo-600 dark:text-indigo-400 font-mono break-all line-clamp-2">
-                                        {`${window.location.origin}/?invite=${invite.code}`}
+                                        {`https://arcelino-cavalcante.github.io/edu-ia-pro/?invite=${invite.code}`}
                                     </p>
                                 </div>
                                 
