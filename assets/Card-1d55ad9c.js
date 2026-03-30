@@ -1,1 +1,0 @@
-import{j as d}from"./index-e650ff31.js";const s=({children:r,className:a=""})=>d.jsx("div",{className:`bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-700 shadow-sm ${a}`,children:r});export{s as C};

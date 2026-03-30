@@ -1,0 +1,1 @@
+import{a as r,j as e}from"./index-97602e5e.js";const a=({children:s})=>{const{isDarkMode:o}=r();return e.jsx("div",{className:`${o?"dark":""} h-screen flex transition-colors duration-300`,children:s})};export{a as AppLayout};
